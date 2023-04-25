@@ -87,20 +87,17 @@ class SimpleDecoderBlock(nn.Module):
         return x
 
 
-class SimpleAE(nn.Module):
+class AE(nn.Module):
 
-    def __init__(self, hidden_dim: int, depth: int, dropout: float = 0.5, activation: nn.Module = nn.ReLU) -> None:
+    def __init__(self, hidden_dim: int, depth: int, encoder_block: nn.Module = SimpleEncoderBlock, decoder_block: nn.Module = SimpleDecoderBlock, dropout: float = 0.5, activation: nn.Module = nn.ReLU) -> None:
         super().__init__()
         self.depth = depth
-
-        self.latent = [None]*depth
-        self.reconstructed_latent = [None]*depth
 
         self.encoders = nn.ModuleList()
         self.decoders = nn.ModuleList()
         for i in range(depth):
-            self.encoders.append(SimpleEncoderBlock(dim=hidden_dim, dropout=dropout, activation=activation))
-            self.decoders.append(SimpleDecoderBlock(dim=hidden_dim, dropout=dropout, activation=activation))
+            self.encoders.append(encoder_block(dim=hidden_dim, dropout=dropout, activation=activation))
+            self.decoders.append(decoder_block(dim=hidden_dim, dropout=dropout, activation=activation))
         
         self.embed = nn.Sequential(
             nn.Conv2d(in_channels=3, out_channels=hidden_dim, kernel_size=1, stride=1),
@@ -114,6 +111,30 @@ class SimpleAE(nn.Module):
             nn.Conv2d(in_channels=hidden_dim, out_channels=3, kernel_size=1, stride=1),
             # nn.Sigmoid(),
         )
+
+    def forward(self, x: Tensor):
+        z = self.encoders[0](self.embed(x))
+
+        for i in range(1, self.depth):
+            z = self.encoders[i](z)
+        
+        for i in range(self.depth-1, 0, -1):
+            z = self.decoders[i](z)
+        
+        x_hat = self.head(self.decoders[0](z))
+
+        return x_hat
+    
+    def valid_forward(self, x: Tensor):
+        return self.forward(x)
+    
+
+class AE_Paired(AE):
+    def __init__(self, hidden_dim: int, depth: int, encoder_block: nn.Module = SimpleEncoderBlock, decoder_block: nn.Module = SimpleDecoderBlock, dropout: float = 0.5, activation: nn.Module = nn.ReLU) -> None:
+        super().__init__(hidden_dim, depth, encoder_block, decoder_block, dropout, activation)    
+
+        self.latent = [None]*depth
+        self.reconstructed_latent = [None]*depth
 
     def forward(self, x: Tensor):
         self.latent[0] = x.detach().clone()
@@ -139,3 +160,12 @@ class SimpleAE(nn.Module):
         return self.head(z)
 
 
+class SimplePairedAE(AE_Paired):
+
+    def __init__(self, hidden_dim: int, depth: int, dropout: float = 0.5, activation: nn.Module = nn.ReLU) -> None:
+        super().__init__(hidden_dim, depth, SimpleEncoderBlock, SimpleDecoderBlock, dropout, activation)
+
+
+class SimpleAE(AE):
+    def __init__(self, hidden_dim: int, depth: int, dropout: float = 0.5, activation: nn.Module = nn.ReLU) -> None:
+        super().__init__(hidden_dim, depth, SimpleEncoderBlock, SimpleDecoderBlock, dropout, activation)
