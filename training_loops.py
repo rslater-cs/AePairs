@@ -44,5 +44,5 @@ class AETraining(pl.LightningModule):
         return loss
     
     def configure_optimizers(self):
-        optimiser = Adam(self.parameters(), lr=1e-3)
+        optimiser = Adam(self.parameters(), lr=1e-4)
         return optimiser

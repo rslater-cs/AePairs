@@ -48,7 +48,7 @@ class SimpleEncoderBlock(nn.Module):
             Permute((0, 2, 3, 1)),
             self.norm,
             Permute((0, 3, 1, 2)),
-            nn.Dropout(dropout)
+            nn.Dropout2d(dropout)
         )
 
     def forward(self, x: Tensor):
@@ -89,7 +89,7 @@ class SimpleDecoderBlock(nn.Module):
 
 class SimpleAE(nn.Module):
 
-    def __init__(self, hidden_dim: int, depth: int, dropout: float = 0.5) -> None:
+    def __init__(self, hidden_dim: int, depth: int, dropout: float = 0.5, activation: nn.Module = nn.ReLU) -> None:
         super().__init__()
         self.depth = depth
 
@@ -99,8 +99,8 @@ class SimpleAE(nn.Module):
         self.encoders = nn.ModuleList()
         self.decoders = nn.ModuleList()
         for i in range(depth):
-            self.encoders.append(SimpleEncoderBlock(dim=hidden_dim, dropout=dropout))
-            self.decoders.append(SimpleDecoderBlock(dim=hidden_dim, dropout=dropout))
+            self.encoders.append(SimpleEncoderBlock(dim=hidden_dim, dropout=dropout, activation=activation))
+            self.decoders.append(SimpleDecoderBlock(dim=hidden_dim, dropout=dropout, activation=activation))
         
         self.embed = nn.Sequential(
             nn.Conv2d(in_channels=3, out_channels=hidden_dim, kernel_size=1, stride=1),
@@ -112,7 +112,7 @@ class SimpleAE(nn.Module):
 
         self.head = nn.Sequential(
             nn.Conv2d(in_channels=hidden_dim, out_channels=3, kernel_size=1, stride=1),
-            nn.Sigmoid(),
+            # nn.Sigmoid(),
         )
 
     def forward(self, x: Tensor):
