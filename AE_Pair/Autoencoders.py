@@ -1,4 +1,4 @@
-from torch import nn, Tensor
+from torch import nn, Tensor, concat
 from typing import Tuple
 
 class Permute(nn.Module):
@@ -26,8 +26,11 @@ class TransformBlock(nn.Module):
             nn.Dropout2d(dropout),
         )
 
+        self.aggregate = nn.Conv2d(in_channels=2*dim, out_channels=dim, kernel_size=1, stride=1)
+
     def forward(self, x: Tensor):
-        x =  self.transform(x)
+        z = self.transform(x)
+        x = self.aggregate(concat((z, x), dim=1))
         return x
 
 class SimpleEncoderBlock(nn.Module):
@@ -108,7 +111,14 @@ class AE(nn.Module):
         )
 
         self.head = nn.Sequential(
-            nn.Conv2d(in_channels=hidden_dim, out_channels=3, kernel_size=1, stride=1),
+            nn.Conv2d(in_channels=hidden_dim, out_channels=hidden_dim, kernel_size=3, stride=1, padding=1),
+            activation(),
+            nn.Conv2d(in_channels=hidden_dim, out_channels=hidden_dim//2, kernel_size=3, stride=1, padding=1),
+            activation(),
+            Permute((0, 2, 3, 1)),
+            nn.LayerNorm(hidden_dim//2),
+            Permute((0, 3, 1, 2)),
+            nn.Conv2d(in_channels=hidden_dim//2, out_channels=3, kernel_size=1, stride=1),
             # nn.Sigmoid(),
         )
 

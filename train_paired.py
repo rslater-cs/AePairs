@@ -18,14 +18,16 @@ if __name__ == '__main__':
     ]
     )
     dataset = CIFAR(batch_size=BATCH_SIZE, num_workers=0, transform=transform)
-    model = SimpleAE(hidden_dim=HIDDEN_DIM, depth=3, activation=nn.ReLU)
+    model = SimplePairedAE(hidden_dim=HIDDEN_DIM, depth=3, activation=nn.ReLU)
+    model_part2 = SimpleAE(hidden_dim=HIDDEN_DIM, depth=3, activation=nn.ReLU)
     print(model)
-    model = AETraining(model, lr=1e-3)
+    model = AEPairedTraining(model, lr=1e-3)
 
     trainer = pl.Trainer(max_epochs=EPOCHS)
     trainer.fit(model, dataset.trainloader, dataset.validloader)
 
-    model = AETraining(model.autoencoder, lr=1e-4)
+    model_part2.load_state_dict(model.autoencoder.state_dict())
+    model = AETraining(model_part2, lr=1e-4)
 
     trainer = pl.Trainer(default_root_dir=trainer.default_root_dir, max_epochs=EPOCHS)
     trainer.fit(model, dataset.trainloader, dataset.validloader)

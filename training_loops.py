@@ -5,12 +5,13 @@ from torch import Tensor, nn
 from torch.optim import Adam
 
 class AETraining(pl.LightningModule):
-    def __init__(self, autoencoder: AE) -> None:
+    def __init__(self, autoencoder: AE, lr: float = 1e-3) -> None:
         super().__init__()
 
         self.autoencoder = autoencoder
         self.loss_func = nn.MSELoss()
         self.valid_loss_func = nn.MSELoss()
+        self.lr = lr
 
     def training_step(self, batch, batch_idx) -> Tensor:
         self.autoencoder.zero_grad()
@@ -39,13 +40,13 @@ class AETraining(pl.LightningModule):
         return loss
     
     def configure_optimizers(self):
-        optimiser = Adam(self.parameters(), lr=1e-3)
+        optimiser = Adam(self.parameters(), lr=self.lr)
         return optimiser
     
 class AEPairedTraining(AETraining):
 
-    def __init__(self, autoencoder: AE) -> None:
-        super().__init__(autoencoder)
+    def __init__(self, autoencoder: AE, lr: float = 1e-3) -> None:
+        super().__init__(autoencoder, lr)
 
         self.loss_func = MultiMSELoss(weights='sum')
 
