@@ -1,7 +1,7 @@
 import lightning.pytorch as pl
 from torchvision import transforms
 from training_loops import AETraining, AEPairedTraining
-from AE_Pair.Autoencoders import SimpleAE, SimplePairedAE
+from AE_Pair.Autoencoders import SimpleAE, SimplePairedAE, SwinAE, SwinPairedAE
 from datasets import CIFAR
 from torch import nn
 # import ssl
@@ -18,8 +18,10 @@ if __name__ == '__main__':
     ]
     )
     dataset = CIFAR(batch_size=BATCH_SIZE, num_workers=0, transform=transform)
-    model = SimplePairedAE(hidden_dim=HIDDEN_DIM, depth=3, activation=nn.ReLU)
-    model_part2 = SimpleAE(hidden_dim=HIDDEN_DIM, depth=3, activation=nn.ReLU)
+    # model = SimplePairedAE(hidden_dim=HIDDEN_DIM, depth=3, activation=nn.ReLU)
+    model = SwinPairedAE(hidden_dim=HIDDEN_DIM, depths=[4,4,6], num_heads=[4,4,8], window_size=[2,2])
+    # model_part2 = SimpleAE(hidden_dim=HIDDEN_DIM, depth=3, activation=nn.ReLU)
+    model_part2 = SwinAE(hidden_dim=HIDDEN_DIM, depths=[4,4,6], num_heads=[4,4,8], window_size=[2,2])
     print(model)
     model = AEPairedTraining(model, lr=1e-3)
 
