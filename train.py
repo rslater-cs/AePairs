@@ -7,9 +7,9 @@ from torch import nn
 # import ssl
 # ssl._create_default_https_context = ssl._create_unverified_context
 
-BATCH_SIZE = 8
-HIDDEN_DIM = 24
-EPOCHS = 25
+BATCH_SIZE = 32
+HIDDEN_DIM = 192
+EPOCHS = 20
 
 if __name__ == '__main__':
     transform = transforms.Compose([
@@ -21,7 +21,7 @@ if __name__ == '__main__':
     # model = SimpleAE(hidden_dim=HIDDEN_DIM, depth=3, activation=nn.ReLU)
     model = SwinAE(hidden_dim=HIDDEN_DIM, depths=[4,4,6], num_heads=[4,4,8], window_size=[2,2])
     print(model)
-    model = AETraining(model, lr=1e-3)
+    model = AETraining(model, lr=5e-4)
 
     trainer = pl.Trainer(max_epochs=EPOCHS)
     trainer.fit(model, dataset.trainloader, dataset.validloader)

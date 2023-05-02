@@ -1,8 +1,15 @@
 from torch import nn, Tensor, concat
 import torch
-from typing import Tuple, Dict, Any, List, Callable
+from typing import Tuple, Dict, Any, List, Callable, Union
 from torchvision.models.swin_transformer import SwinTransformerBlock
 from torchvision.models.swin_transformer import PatchMerging as SwinPatchMerging
+
+class NoneLayer(nn.Module):
+    def __init__(self) -> None:
+        super().__init__()
+
+    def forward(self, x):
+        return x
 
 class Permute(nn.Module):
 
@@ -185,7 +192,7 @@ class SwinDecoderBlock(nn.Module):
 
 class AE(nn.Module):
 
-    def __init__(self, hidden_dim: int, depth: int, encoder_block: nn.Module = SimpleEncoderBlock, decoder_block: nn.Module = SimpleDecoderBlock, dropout: float = 0.5, activation: nn.Module = nn.ReLU, block_args: List[Dict[str, Any]] = None) -> None:
+    def __init__(self, hidden_dim: int, depth: int, transfer_dim: int = -1, encoder_block: nn.Module = SimpleEncoderBlock, decoder_block: nn.Module = SimpleDecoderBlock, dropout: float = 0.5, activation: nn.Module = nn.ReLU, block_args: List[Dict[str, Any]] = None) -> None:
         super().__init__()
         self.depth = depth
 
@@ -202,6 +209,13 @@ class AE(nn.Module):
             Permute((0, 3, 1, 2)),
             nn.Dropout2d(dropout),
         )
+
+        if transfer_dim < 0:
+            self.to_transfer = NoneLayer()
+            self.from_transfer = NoneLayer()
+        else:
+            self.to_transfer = nn.Conv2d(hidden_dim, transfer_dim, kernel_size=1, stride=1)
+            self.from_transfer = nn.Conv2d(transfer_dim, hidden_dim, kernel_size=1, stride=1)
 
         self.head = nn.Sequential(
             nn.Conv2d(in_channels=hidden_dim, out_channels=hidden_dim, kernel_size=3, stride=1, padding=1),
@@ -221,6 +235,9 @@ class AE(nn.Module):
         for i in range(1, self.depth):
             z = self.encoders[i](z)
         
+        z = self.to_transfer(z)
+        z = self.from_transfer(z)
+        
         for i in range(self.depth-1, 0, -1):
             z = self.decoders[i](z)
         
@@ -233,8 +250,8 @@ class AE(nn.Module):
     
 
 class AE_Paired(AE):
-    def __init__(self, hidden_dim: int, depth: int, encoder_block: nn.Module = SimpleEncoderBlock, decoder_block: nn.Module = SimpleDecoderBlock, dropout: float = 0.5, activation: nn.Module = nn.ReLU, block_args: List[Dict[str, Any]] = None) -> None:
-        super().__init__(hidden_dim, depth, encoder_block, decoder_block, dropout, activation, block_args)    
+    def __init__(self, hidden_dim: int, depth: int, transfer_dim: int = -1, encoder_block: nn.Module = SimpleEncoderBlock, decoder_block: nn.Module = SimpleDecoderBlock, dropout: float = 0.5, activation: nn.Module = nn.ReLU, block_args: List[Dict[str, Any]] = None) -> None:
+        super().__init__(hidden_dim, depth, transfer_dim, encoder_block, decoder_block, dropout, activation, block_args)    
 
         self.latent = [None]*depth
         self.reconstructed_latent = [None]*depth
@@ -265,7 +282,7 @@ class AE_Paired(AE):
 
 class SimplePairedAE(AE_Paired):
 
-    def __init__(self, hidden_dim: int, depth: int, dropout: float = 0.5, activation: nn.Module = nn.ReLU) -> None:
+    def __init__(self, hidden_dim: int, depth: int, transfer_dim: int = -1, dropout: float = 0.5, activation: nn.Module = nn.ReLU) -> None:
         block_args = dict()
         block_args['dropout'] = dropout
         block_args['activation'] = activation
@@ -275,11 +292,11 @@ class SimplePairedAE(AE_Paired):
         for i in range(depth):
             block_args_list.append(block_args)
 
-        super().__init__(hidden_dim, depth, SimpleEncoderBlock, SimpleDecoderBlock, dropout, activation, block_args_list)
+        super().__init__(hidden_dim, depth, transfer_dim, SimpleEncoderBlock, SimpleDecoderBlock, dropout, activation, block_args_list)
 
 
 class SimpleAE(AE):
-    def __init__(self, hidden_dim: int, depth: int, dropout: float = 0.5, activation: nn.Module = nn.ReLU) -> None:
+    def __init__(self, hidden_dim: int, depth: int, transfer_dim: int = -1, dropout: float = 0.5, activation: nn.Module = nn.ReLU) -> None:
         block_args = dict()
         block_args['dropout'] = dropout
         block_args['activation'] = activation
@@ -289,10 +306,10 @@ class SimpleAE(AE):
         for i in range(depth):
             block_args_list.append(block_args)
         
-        super().__init__(hidden_dim, depth, SimpleEncoderBlock, SimpleDecoderBlock, dropout, activation, block_args_list)
+        super().__init__(hidden_dim, depth, transfer_dim, SimpleEncoderBlock, SimpleDecoderBlock, dropout, activation, block_args_list)
 
 class SwinAE(AE):
-    def __init__(self, hidden_dim: int, depths: List[int], num_heads: List[int], window_size: List[int], mlp_ratio: float = 4.0, dropout: float = 0.0, attn_dropout: float = 0.0, activation: nn.Module = nn.ReLU) -> None:
+    def __init__(self, hidden_dim: int, depths: List[int], num_heads: List[int], window_size: List[int], transfer_dim: int = -1, mlp_ratio: float = 4.0, dropout: float = 0.0, attn_dropout: float = 0.0, activation: nn.Module = nn.ReLU) -> None:
         block_args = []
 
         for i in range(len(depths)):
@@ -306,10 +323,10 @@ class SwinAE(AE):
             block_arg['attention_dropout'] = attn_dropout
             block_args.append(block_arg)
 
-        super().__init__(hidden_dim, len(depths), SwinEncoderBlock, SwinDecoderBlock, dropout, activation, block_args)
+        super().__init__(hidden_dim, len(depths), transfer_dim, SwinEncoderBlock, SwinDecoderBlock, dropout, activation, block_args)
 
 class SwinPairedAE(AE_Paired):
-    def __init__(self, hidden_dim: int, depths: List[int], num_heads: List[int], window_size: List[int], mlp_ratio: float = 4.0, dropout: float = 0.0, attn_dropout: float = 0.0, activation: nn.Module = nn.ReLU) -> None:
+    def __init__(self, hidden_dim: int, depths: List[int], num_heads: List[int], window_size: List[int], transfer_dim: int = -1, mlp_ratio: float = 4.0, dropout: float = 0.0, attn_dropout: float = 0.0, activation: nn.Module = nn.ReLU) -> None:
         block_args = []
 
         for i in range(len(depths)):
@@ -323,4 +340,4 @@ class SwinPairedAE(AE_Paired):
             block_arg['attention_dropout'] = attn_dropout
             block_args.append(block_arg)
 
-        super().__init__(hidden_dim, len(depths), SwinEncoderBlock, SwinDecoderBlock, dropout, activation, block_args)
+        super().__init__(hidden_dim, len(depths), transfer_dim, SwinEncoderBlock, SwinDecoderBlock, dropout, activation, block_args)

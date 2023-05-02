@@ -1,7 +1,7 @@
 import lightning.pytorch as pl
 from AE_Pair.metrics import MultiMSELoss
 from AE_Pair.Autoencoders import AE
-from torch import Tensor, nn
+from torch import Tensor, nn, log10
 from torch.optim import Adam
 
 class AETraining(pl.LightningModule):
@@ -34,8 +34,10 @@ class AETraining(pl.LightningModule):
         x_hat = self.autoencoder.valid_forward(x)
 
         loss = self.valid_loss_func(y, x_hat)
+        psnr = -10*log10(loss)
 
         self.log("val/loss", loss, on_step=False, on_epoch=True)
+        self.log("val/psnr", psnr, on_step=False, on_epoch=True)
 
         return loss
     
