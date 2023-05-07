@@ -9,7 +9,13 @@ from typing import Union
 
 class CIFAR():
 
-    def __init__(self, batch_size: int = 8, shuffle: bool = True, transform: Module = ToTensor(), num_workers: int = 12):
+    def __init__(self, batch_size: int = 8, shuffle: bool = True, transform: Union[Module, None] = None, num_workers: int = 12):
+        if transform == None:
+            transform = transforms.Compose([
+                ToTensor(),
+                transforms.Normalize(mean=[0.485, 0.456, 0.406], std=[0.229, 0.224, 0.225])
+            ])
+
         self.trainset = CIFAR10(root='./data', train=True, download=True, transform=transform)
         self.validset = CIFAR10(root='./data', train=False, download=True, transform=transform)
         self.trainloader = DataLoader(self.trainset, batch_size=batch_size, shuffle=shuffle, num_workers=num_workers)
