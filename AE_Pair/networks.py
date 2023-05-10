@@ -290,8 +290,16 @@ class AE_Paired(nn.Module):
         )
 
         self.pairs = nn.ModuleList()
+
+        self.first_encoder = encoder_block(**block_args[0])
+        self.first_decoder = decoder_block(**block_args[0])
+
+        e = nn.Sequential(self.embed, self.first_encoder)
+        d = nn.Sequential(self.first_decoder, self.head)
+
+        self.pairs.append(Pair(e, d))
         
-        for i in range(depth):
+        for i in range(1, depth):
             self.pairs.append(Pair(encoder_block(**block_args[i]), decoder_block(**block_args[i])))
 
         if transfer_block != None:
@@ -300,14 +308,15 @@ class AE_Paired(nn.Module):
     def forward(self, x: torch.Tensor):
         losses = torch.empty((len(self.pairs),))
 
-        z = self.embed(x)
+        z = x
         for i in range(len(self.pairs)):
             z, losses[i] = self.pairs[i](z)
 
         return losses
     
     def to_autoencoder(self) -> AE:
-        autoencoder = AE(**self.args)
+        device = next(self.parameters()).device
+        autoencoder = AE(**self.args).to(device)
 
         autoencoder.embed.load_state_dict(self.embed.state_dict())
         autoencoder.head.load_state_dict(self.head.state_dict())
@@ -316,10 +325,13 @@ class AE_Paired(nn.Module):
         decoders = nn.ModuleList()
 
         encoders.append(self.embed)
+        encoders.append(self.first_encoder)
         
-        for i in range(self.depth):
+        for i in range(1, self.depth):
             encoders.append(self.pairs[i].encoder)
-            decoders.append(self.pairs[i].decoder)
+            decoders.append(self.pairs[self.depth-i].decoder)
+
+        decoders.append(self.first_decoder)
 
         decoders.append(self.head)
 
@@ -346,14 +358,18 @@ class SimplePairedAE(AE_Paired):
 
         to_bottle = nn.Sequential(
             nn.Conv2d(hidden_dim, hidden_dim//2, kernel_size=1, stride=1),
+            activation(),
             nn.Conv2d(hidden_dim//2, transfer_dim, kernel_size=1, stride=1),
+            activation(),
             Permute((0, 2, 3, 1)),
             nn.LayerNorm(transfer_dim),
             Permute((0, 3, 1, 2))
         )
         from_bottle = nn.Sequential(
             nn.Conv2d(transfer_dim, hidden_dim//2, kernel_size=1, stride=1),
+            activation(),
             nn.Conv2d(hidden_dim//2, hidden_dim, kernel_size=1, stride=1),
+            activation(),
             Permute((0, 2, 3, 1)),
             nn.LayerNorm(hidden_dim),
             Permute((0, 3, 1, 2))
